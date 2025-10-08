@@ -1,0 +1,87 @@
+m255
+K4
+z2
+Z0 !s99 nomlopt
+R0
+R0
+R0
+R0
+R0
+R0
+R0
+!s11f vlog 2021.3_1 2021.08, Aug 15 2021
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z1 d/u/dboss/Documents/ECE571/hw1
+T_opt
+!s110 1759902104
+V;F7cXKgBhHRHN=G[14P450
+Z2 04 3 4 work top fast 0
+=1-000ae431a4f1-68e5f998-9c24-35c835
+Z3 !s124 OEM100
+o-quiet -auto_acc_if_foreign -work work
+Z4 tCvgOpt 0
+n@_opt
+Z5 OL;O;2021.3_1;73
+R1
+vmartian_days
+Z6 DXx6 sv_std 3 std 0 22 9oUSJO;AeEaW`l:M@^WG92
+Z7 !s110 1759903450
+!i10b 1
+!s100 LnA0^Z8k76iO@k>ah>0mU1
+IJ5g[jY<[G1X[4K`P3hGKN1
+S1
+Z8 d/home/dboss/common/Documents/ECE571/hw1
+w1759881033
+8martian_days.sv
+Fmartian_days.sv
+!i122 7
+L0 1 15
+Z9 VDg1SIo80bB@j0V0VzS_@n1
+Z10 OL;L;2021.3_1;73
+r1
+!s85 0
+31
+Z11 !s108 1759903450.000000
+Z12 !s107 martian_days_tb.sv|martian_days.sv|
+Z13 !s90 -reportprogress|300|martian_days.sv|martian_days_tb.sv|
+!i113 0
+Z14 o-L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R4
+vtop
+R6
+R7
+!i10b 1
+!s100 Ld0LkgWmnfhYjjNHKNY=]2
+IY;`j2^fXgeK5HW<]VYzED3
+S1
+R8
+w1759902062
+8martian_days_tb.sv
+Fmartian_days_tb.sv
+!i122 7
+L0 2 18
+R9
+R10
+r1
+!s85 0
+31
+R11
+R12
+R13
+!i113 0
+R14
+R4
+Ttop_opt
+!s110 1759903451
+VA]Z_8BOEK:Pon1kVIl>U<2
+R2
+R3
+o+acc
+R4
+ntop_opt
+R5
