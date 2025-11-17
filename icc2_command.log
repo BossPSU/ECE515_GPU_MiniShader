@@ -1,0 +1,9 @@
+#@ # 
+#@ # Running icc2_shell Version V-2023.12 for linux64 -- Nov 23, 2023
+#@ # Date:   Wed Apr 10 15:21:01 2024
+#@ # Run by: dboss@auto.ece.pdx.edu
+#@ 
+
+gui_start
+gui_set_pref_value -category {SelectByNamePalette} -key {ObjectType} -value {Logical Cells}
+exit
