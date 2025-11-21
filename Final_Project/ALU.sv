@@ -2,8 +2,7 @@
 import opcode_pkg::*;
 import GPU_Shader_pkg::*; // for word_t and MEM_DEPTH
 
-module ALU
-  ( input  logic            clk,                // optional clock (unused here but kept for uniform interface)
+module ALU ( input  logic            clk,                // optional clock (unused here but kept for uniform interface)
     input  word_t           read_reg0,          // operand 0 (usually register)
     input  word_t           read_reg1,          // operand 1 (usually register)
     input  word_t           mem_read_data,      // data read from memory (for LOAD)
@@ -13,7 +12,7 @@ module ALU
     output logic [$clog2(MEM_DEPTH)-1:0] mem_write_addr, // address for memory write
     output word_t           mem_write_data,     // data to write to memory
     output word_t           write_reg           // value to write back to register file (or host)
-  );
+);
 
   // Cast opcode bits into enum type defined in opcode_pkg.
   // Adjust the enum type name if your package uses a different typedef name.

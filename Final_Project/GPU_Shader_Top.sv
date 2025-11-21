@@ -1,12 +1,13 @@
-// GPU_Shader.sv
+// GPU_Shader_with_MatrixAdd.sv
 import GPU_Shader_pkg::*;
-import opcode_pkg::*; // assume opcodes like OP_LOAD, OP_STORE, OP_ADD exist
+import opcode_pkg::*; // assume opcodes like OP_LOAD, OP_STORE, OP_ADD, OP_MATADD
 
 module GPU_Shader
   ( input  logic            clk,
+    input  logic            rst_n,
     input  logic [31:0]     instr  [lanes-1:0],
-    input  word_t           regfile [lanes-1:0][63:0], // regfile[lane][reg_index]
-    output word_t           write_reg_out [lanes-1:0][63:0] // writeback per-lane (optional)
+    input  word_t           regfile [lanes-1:0][63:0],
+    output word_t           write_reg_out [lanes-1:0][63:0]
   );
 
   // ------------------------------------------------------------
@@ -18,7 +19,6 @@ module GPU_Shader
   logic [4:0]  src1     [lanes-1:0];
   logic [10:0] immd     [lanes-1:0];
 
-  // instantiate decode module (assumes decode has same port names)
   decode dec (
     .instr(instr),
     .opcode(opcode),
@@ -29,7 +29,7 @@ module GPU_Shader
   );
 
   // ------------------------------------------------------------
-  // dual-ported scratchpad: single bank with two read ports per lane + writes per lane
+  // dual-ported scratchpad memory (shared)
   // ------------------------------------------------------------
   localparam int AW = $clog2(MEM_DEPTH);
 
@@ -38,11 +38,10 @@ module GPU_Shader
   word_t         mem_rdata_a [lanes-1:0];
   word_t         mem_rdata_b [lanes-1:0];
 
-  logic [lanes-1:0]              mem_wen;
-  logic [AW-1:0]                 mem_waddr [lanes-1:0];
-  word_t                         mem_wdata [lanes-1:0];
+  logic [lanes-1:0] mem_wen;
+  logic [AW-1:0]    mem_waddr [lanes-1:0];
+  word_t            mem_wdata [lanes-1:0];
 
-  // dual-ported memory instance (reads combinational, writes synchronous)
   mem_dualport #(.ADDR_WIDTH(AW)) mem0 (
     .clk(clk),
     .write_en(mem_wen),
@@ -55,43 +54,20 @@ module GPU_Shader
   );
 
   // ------------------------------------------------------------
-  // instantiate ALUs per lane
+  // ALUs per-lane
   // ------------------------------------------------------------
   genvar i;
   generate
     for (i = 0; i < lanes; i++) begin : lanes_block
-      // Connect ALU inputs:
-      // - For register-ALU ops, use the regfile values
-      // - For load/store, layers use mem read ports (we'll set mem_raddr_a/b below)
-      //
-      // ALU interface we expect (example):
-      // ALU ( .clk(clk),
-      //       .read_reg0(word_t), .read_reg1(word_t),
-      //       .mem_read_data(word_t), // optional
-      //       .opcode(logic [5:0]),
-      //       .immd(logic [10:0]),
-      //       .mem_write_en(output), .mem_write_addr(output), .mem_write_data(output),
-      //       .write_reg(output)
-      // );
-      //
-      // We'll instantiate a symmetric ALU that can request a mem write (STORE) or use mem read as source (LOAD).
-
-      // local per-lane wires for ALU connection
-      word_t alu_read0;
-      word_t alu_read1;
+      word_t alu_read0 = regfile[i][ src0[i] ];
+      word_t alu_read1 = regfile[i][ src1[i] ];
       word_t alu_write_result;
 
-      // Choose ALU operand sources (here: primarily from regfile; you can change to mem reads)
-      // dynamic indexing into regfile using src field
-      assign alu_read0 = regfile[i][ src0[i] ];
-      assign alu_read1 = regfile[i][ src1[i] ];
-
-      // instantiate ALU (you must have an ALU with this port ordering)
       ALU alu_i (
         .clk          (clk),
         .read_reg0    (alu_read0),
         .read_reg1    (alu_read1),
-        .mem_read_data(mem_rdata_a[i]), // choose mem port A as ALU's optional mem input (for LOAD)
+        .mem_read_data(mem_rdata_a[i]), // optional LOAD
         .opcode       (opcode[i]),
         .immd         (immd[i]),
         .mem_write_en (mem_wen[i]),
@@ -100,50 +76,106 @@ module GPU_Shader
         .write_reg    (alu_write_result)
       );
 
-      // writeback into host-visible write_reg_out (indexed by dst)
-      // If your write_reg_out is a set of registers per-lane, set the destination accordingly.
-      // Here we write the ALU result into the per-lane dst index.
-      // Because write_reg_out is a 2D array, we use procedural assignment in always_comb
       always_comb begin
-        // default: keep previous or 0
-        write_reg_out[i] = '0; // zero all reg entries by default
-        // write single destination register
-        // Note: this is a simplified model. In a real design you'd do register-file writeback synchronously.
+        write_reg_out[i] = '0;
         write_reg_out[i][ dst[i] ] = alu_write_result;
       end
 
-      // ------------------------------------------------------------
-      // Memory address selection for this lane (simple example)
-      // ------------------------------------------------------------
-      // Example ISA conventions (adapt to your encoding):
-      // - OP_LOAD: immd holds memory address; result -> write_reg
-      // - OP_STORE: mem_write_en asserted by ALU; write_data from read_reg0
-      //
-      // For matrix-add engine you would set mem_raddr_a and mem_raddr_b based on immd or src.
+      // memory read addr assignment per lane
       always_comb begin
-        // default addresses (avoid X)
-        mem_raddr_a[i] = '0;
-        mem_raddr_b[i] = '0;
-
-        // Simple example semantics:
-        // Use immediate as memory address for LOAD/STORE, else leave addresses 0.
-        if (opcode[i] == OP_LOAD) begin
-          mem_raddr_a[i] = immd[i][AW-1:0]; // read A from address in immediate
-        end else if (opcode[i] == OP_STORE) begin
-          // For store we want to write reg0 into mem: ALU sets mem_wen/address/data
-          // However we can still optionally read another mem addr into mem_rdata_b
-          mem_raddr_a[i] = '0;
-        end else begin
-          // For normal ALU ops we might not need memory access
-          mem_raddr_a[i] = '0;
-          mem_raddr_b[i] = '0;
-        end
-
-        // Example: if you want ALU to fetch a second memory source (B) from src1/immd or similar, set mem_raddr_b
-        // mem_raddr_b[i] = some_other_addr;
+        mem_raddr_a[i] = (opcode[i] == OP_LOAD)  ? immd[i][AW-1:0] : '0;
+        mem_raddr_b[i] = (opcode[i] == OP_STORE) ? immd[i][AW-1:0] : '0;
       end
-
     end
   endgenerate
+
+  // ------------------------------------------------------------
+  // ----------------- MATRIX ADD ENGINE ------------------------
+  // ------------------------------------------------------------
+  logic            mat_start;
+  logic [31:0]     mat_baseA, mat_baseB, mat_baseC;
+  logic [31:0]     mat_length;
+  logic            mat_busy, mat_done;
+
+  // memory interface for engine
+  logic [AW-1:0] mat_raddrA [lanes-1:0];
+  logic [AW-1:0] mat_raddrB [lanes-1:0];
+  word_t         mat_rdataA [lanes-1:0];
+  word_t         mat_rdataB [lanes-1:0];
+  logic [lanes-1:0] mat_wen;
+  logic [AW-1:0] mat_waddr [lanes-1:0];
+  word_t         mat_wdata [lanes-1:0];
+
+  MatrixAddEngine #(
+    .lanes(lanes),
+    .MEM_DEPTH(MEM_DEPTH)
+  ) mat_eng (
+    .clk(clk),
+    .rst_n(rst_n),
+    .start(mat_start),
+    .baseA(mat_baseA),
+    .baseB(mat_baseB),
+    .baseC(mat_baseC),
+    .length(mat_length),
+    .busy(mat_busy),
+    .done(mat_done),
+    .mem_raddrA_in(mat_raddrA),
+    .mem_raddrB_in(mat_raddrB),
+    .mem_rdataA_out(mat_rdataA),
+    .mem_rdataB_out(mat_rdataB),
+    .memC_wen_out(mat_wen),
+    .memC_waddr_out(mat_waddr),
+    .memC_wdata_out(mat_wdata)
+  );
+
+  // ------------------------------------------------------------
+  // GPU FSM (minimal for MatrixAdd)
+  // ------------------------------------------------------------
+  typedef enum logic [1:0] {IDLE=2'd0, RUN=2'd1, WAIT_ENGINE=2'd2} state_t;
+  state_t state = IDLE;
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      state <= IDLE;
+      mat_start <= 0;
+    end else begin
+      case(state)
+        IDLE: begin
+          if (opcode[0] == OP_MATADD) begin
+            // Example: take register values as baseA/B/C/length
+            mat_baseA <= regfile[0][ src0[0] ];
+            mat_baseB <= regfile[0][ src1[0] ];
+            mat_baseC <= regfile[0][ dst[0] ];
+            mat_length <= regfile[0][ immd[0] ]; // immediate can hold length
+            mat_start <= 1'b1;
+            state <= WAIT_ENGINE;
+          end else begin
+            mat_start <= 0;
+          end
+        end
+        WAIT_ENGINE: begin
+          mat_start <= 0; // one-cycle pulse
+          if (mat_done) state <= IDLE;
+        end
+      endcase
+    end
+  end
+
+  // ------------------------------------------------------------
+  // ------------------- MEMORY CONNECTION ---------------------
+  // ------------------------------------------------------------
+  // Combine normal ALU memory writes with MatrixAdd memory writes
+  always_comb begin
+    for (int j = 0; j < lanes; j++) begin
+      // If MatrixAddEngine is active, its writes override ALU writes
+      mem_wen[j]   = mat_busy ? mat_wen[j]   : mem_wen[j];
+      mem_waddr[j] = mat_busy ? mat_waddr[j] : mem_waddr[j];
+      mem_wdata[j] = mat_busy ? mat_wdata[j] : mem_wdata[j];
+
+      // read addresses: ALU or engine
+      mem_raddr_a[j] = mat_busy ? mat_raddrA[j] : mem_raddr_a[j];
+      mem_raddr_b[j] = mat_busy ? mat_raddrB[j] : mem_raddr_b[j];
+    end
+  end
 
 endmodule
