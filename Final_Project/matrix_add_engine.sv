@@ -60,7 +60,7 @@ module MatrixAddEngine
   word_t memC_rdata_unused [lanes-1:0];
 
   // instantiate mem banks
-  mem_scratchpad #(.ADDR_WIDTH(AW)) memA (
+  mem_dualport #(.ADDR_WIDTH(AW)) memA (
     .clk(clk),
     .write_en(memA_wen),
     .write_addr('{default: '0}),
@@ -69,7 +69,7 @@ module MatrixAddEngine
     .read_data(memA_rdata)
   );
 
-  mem_scratchpad #(.ADDR_WIDTH(AW)) memB (
+  mem_dualport #(.ADDR_WIDTH(AW)) memB (
     .clk(clk),
     .write_en(memB_wen),
     .write_addr('{default: '0}),
@@ -79,7 +79,7 @@ module MatrixAddEngine
   );
 
   // memC (output)
-  mem_scratchpad #(.ADDR_WIDTH(AW)) memC (
+  mem_dualport #(.ADDR_WIDTH(AW)) memC (
     .clk(clk),
     .write_en(memC_wen),
     .write_addr(memC_waddr),
