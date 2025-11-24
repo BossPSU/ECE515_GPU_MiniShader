@@ -1,5 +1,0 @@
-needed to add lines 2 and 3 to run.do because objects were getting optimized out of the design
-
-run with below command
-
-vsim -do run.do
