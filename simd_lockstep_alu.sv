@@ -3,22 +3,22 @@
 
 module simd_lockstep_alu #(
     parameter int LANES = 4,
-    parameter int WIDTH = 32
+    parameter int BIT_WIDTH = 32
 )(
     input  logic                     clk,
-    input  logic                     rst,
+    input  logic                     reset,
 
     // Control
     input  logic                     start,    // pulse to start the SIMD op
     output logic                     done,     // pulses when whole vector op done
-    input  logic [1:0]               op,       // operation code
+    input  logic [1:0]               op_code,       // operation code
 
     // Per-lane operands (unsigned)
-    input  logic [LANES-1:0][WIDTH-1:0] a,
-    input  logic [LANES-1:0][WIDTH-1:0] b,
+    input  logic [LANES-1:0][BIT_WIDTH-1:0] a,
+    input  logic [LANES-1:0][BIT_WIDTH-1:0] b,
 
     // Results per-lane
-    output logic [LANES-1:0][WIDTH-1:0] result,
+    output logic [LANES-1:0][BIT_WIDTH-1:0] result,
     // Extra per-lane flags (division)
     output logic [LANES-1:0]            div_by_zero
 );
@@ -35,23 +35,23 @@ module simd_lockstep_alu #(
     typedef enum logic [1:0] {IDLE, START_BIT, WAIT_BIT, FINISHED} state_t;
     state_t state, next;
 
-    logic [$clog2(WIDTH)-1:0] bit_idx;
+    logic [$clog2(BIT_WIDTH)-1:0] bit_select;
     logic start_bit;                       // broadcast start for current micro-step
     logic [LANES-1:0] lane_done;           // per-lane done for current bit
     logic start_op_pulse;                  // pulse to load operands at op start
 
     // FSM / bit index registers
-    always_ff @(posedge clk or posedge rst) begin
-        if (rst) begin
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
             state   <= IDLE;
-            bit_idx <= '0;
+            bit_select <= '0;
         end else begin
             state <= next;
             if (state == START_BIT) begin
                 // advance bit index after the START_BIT cycle completes
-                bit_idx <= bit_idx + 1;
+                bit_select <= bit_select + 1;
             end else if (state == IDLE && start) begin
-                bit_idx <= '0; // prepare for a fresh operation
+                bit_select <= '0; // prepare for a fresh operation
             end
         end
     end
@@ -80,7 +80,7 @@ module simd_lockstep_alu #(
             WAIT_BIT: begin
                 // wait for all lanes to finish this micro-step
                 if (&lane_done) begin
-                    if (bit_idx == WIDTH - 1)
+                    if (bit_select == BIT_WIDTH - 1)
                         next = FINISHED;
                     else
                         next = START_BIT;
@@ -101,7 +101,7 @@ module simd_lockstep_alu #(
     // ------------------------
     // We'll implement the lane as an internal module (simd_lane). Each lane:
     // - loads operands on start_op_pulse
-    // - on each start_bit performs micro-step for bit 'bit_idx'
+    // - on each start_bit performs micro-step for bit 'bit_select'
     // - sets lane_done to indicate it finished this micro-step
     // - produces result when all bits are complete
     //
@@ -110,22 +110,22 @@ module simd_lockstep_alu #(
     for (genvar i = 0; i < LANES; i++) begin : lanes
         // Per-lane wires
         logic lane_done_w;
-        logic [WIDTH-1:0] res_w;
+        logic [BIT_WIDTH-1:0] res_w;
         logic div0_w;
 
         simd_lane #(
-            .WIDTH(WIDTH)
+            .BIT_WIDTH(BIT_WIDTH)
         ) lane_inst (
             .clk        (clk),
-            .rst        (rst),
+            .reset      (reset),
             .start_bit  (start_bit),
-            .bit_idx    (bit_idx),
+            .bit_select    (bit_select),
             .start_op   (start_op_pulse),
 
-            .op         (op),
+            .op_code         (op_code),
 
-            .a_in       (a[i]),
-            .b_in       (b[i]),
+            .a_input       (a[i]),
+            .b_input       (b[i]),
 
             .result_out (res_w),
             .done_bit   (lane_done_w),

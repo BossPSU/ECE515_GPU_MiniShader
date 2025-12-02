@@ -3,7 +3,7 @@
 module tb_simd_lockstep_alu;
 
     localparam int LANES = 4;
-    localparam int WIDTH = 32;
+    localparam int BIT_WIDTH = 32;
 
     // Operation codes (same encoding as DUT)
     typedef enum logic [1:0] {
@@ -18,10 +18,10 @@ module tb_simd_lockstep_alu;
     // -------------------------
     logic clk, rst;
     logic start;
-    opcode_t op;
+    opcode_t op_code;
 
-    logic [LANES-1:0][WIDTH-1:0] a, b;
-    logic [LANES-1:0][WIDTH-1:0] result;
+    logic [LANES-1:0][BIT_WIDTH-1:0] a, b;
+    logic [LANES-1:0][BIT_WIDTH-1:0] result;
     logic [LANES-1:0] div_by_zero;
     logic done;
 
@@ -30,13 +30,13 @@ module tb_simd_lockstep_alu;
     // -------------------------
     simd_lockstep_alu #(
         .LANES(LANES),
-        .WIDTH(WIDTH)
+        .BIT_WIDTH(BIT_WIDTH)
     ) dut (
         .clk(clk),
-        .rst(rst),
+        .reset(rst),
         .start(start),
         .done(done),
-        .op(op),
+        .op_code(op_code),
         .a(a),
         .b(b),
         .result(result),
@@ -63,25 +63,25 @@ module tb_simd_lockstep_alu;
     // ---------------------------------------------------------
     // Golden reference function
     // ---------------------------------------------------------
-    function automatic logic [WIDTH-1:0] golden_calc(
-        opcode_t op,
-        logic [WIDTH-1:0] x,
-        logic [WIDTH-1:0] y,
+    function automatic logic [BIT_WIDTH-1:0] golden_calc(
+        opcode_t op_code,
+        logic [BIT_WIDTH-1:0] x,
+        logic [BIT_WIDTH-1:0] y,
         output logic dbz
     );
         dbz = 0;
 
-        case (op)
+        case (op_code)
             OP_ADD: golden_calc = x + y;
 
             OP_SUB: golden_calc = x - y;
 
-            OP_MUL: golden_calc = x * y; // truncated automatically to WIDTH bits
+            OP_MUL: golden_calc = x * y; // truncated automatically to BIT_WIDTH bits
 
             OP_DIV: begin
                 if (y == 0) begin
                     dbz = 1;
-                    golden_calc = {WIDTH{1'b1}};  // match DUT behavior
+                    golden_calc = {BIT_WIDTH{1'b1}};  // match DUT behavior
                 end else begin
                     golden_calc = x / y;
                 end
@@ -95,7 +95,7 @@ module tb_simd_lockstep_alu;
     // Task to run one test for a given opcode
     // ---------------------------------------------------------
     task automatic run_one_test(opcode_t opcode);
-        logic [LANES-1:0][WIDTH-1:0] exp;
+        logic [LANES-1:0][BIT_WIDTH-1:0] exp;
         logic [LANES-1:0] exp_dbz;
 
         // Randomize per-lane operands
@@ -105,7 +105,7 @@ module tb_simd_lockstep_alu;
         end
 
         // Apply operation
-        op = opcode;
+        op_code = opcode;
 
         // Pulse start signal
         start = 1;
