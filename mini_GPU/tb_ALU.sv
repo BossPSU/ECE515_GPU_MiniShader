@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 import GPU_Shader_pkg::*;
 import opcode_pkg::*;
-module tb_ALU_updated;
+module tb_ALU;
   // Clock (kept for uniformity)
   logic clk;
   initial clk = 0;
@@ -167,13 +167,13 @@ module tb_ALU_updated;
     #10;
 
     opcode = OP_NOP;
-    run_random_arithmetic_tests(10);
+    run_random_arithmetic_tests(1000);
     #10;
 
-    run_randomized_load_tests(10);
+    run_randomized_load_tests(1000);
     #10;
 
-    run_randomized_store_tests(10);
+    run_randomized_store_tests(1000);
     #10;
     
     if (errors == 0) $display("\n*** ALU TB PASSED ***");
